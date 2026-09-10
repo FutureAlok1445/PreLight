@@ -76,5 +76,50 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === "START_DESKTOP_CAPTURE") {
+    (async () => {
+      try {
+        let [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!activeTab) {
+          const allTabs = await chrome.tabs.query({ active: true });
+          activeTab = allTabs && allTabs[0];
+        }
+        await ensureOffscreenDocument();
+        chrome.desktopCapture.chooseDesktopMedia(
+          ["screen", "window", "tab"],
+          activeTab,
+          (streamId) => {
+            if (!streamId) {
+              sendResponse({ ok: false, canceled: true, error: "Capture canceled by user." });
+              return;
+            }
+            chrome.runtime.sendMessage({ type: "CAPTURE_STREAM", streamId }, (resp) => {
+              if (resp && resp.ok && resp.dataUrl) {
+                sendResponse({ ok: true, dataUrl: resp.dataUrl });
+              } else {
+                sendResponse({ ok: false, error: (resp && resp.error) || "Stream capture failed." });
+              }
+            });
+          }
+        );
+      } catch (err) {
+        sendResponse({ ok: false, error: err && err.message ? err.message : "Failed to initiate screen capture." });
+      }
+    })();
+    return true; // async response
+  }
+
   return false;
 });
+
+async function ensureOffscreenDocument() {
+  if (typeof chrome.offscreen === "undefined") return;
+  const hasDoc = await chrome.offscreen.hasDocument();
+  if (hasDoc) return;
+  await chrome.offscreen.createDocument({
+    url: "offscreen/offscreen.html",
+    reasons: ["USER_MEDIA", "DISPLAY_MEDIA"],
+    justification: "Capturing a single frame screenshot of the selected screen or window."
+  });
+}
+

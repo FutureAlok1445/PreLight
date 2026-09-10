@@ -38,6 +38,12 @@
     activePreviewTab: "after",
     processing: false,
 
+    // Crop-specific
+    isCropping: false,
+    cropImageObj: null,
+    cropRect: null,
+    cropDragStart: null,
+
     // PDF-specific
     pdfActiveSubView: "compress", // 'compress' | 'split' | 'merge'
     pdfPageCount: 1,
@@ -67,6 +73,7 @@
     wireHeaderActions();
     wireImageControls();
     wireImageActions();
+    wireCropTool();
     wirePdfControls();
     wireTextControls();
     wireDocumentControls();
@@ -85,7 +92,11 @@
     // Check if a file was passed via storage bridge (e.g. from popup or upload interceptor)
     const pending = await consumePending();
     if (pending) {
+      const isCropSource = pending.source === "crop";
       await loadFile(pending);
+      if (isCropSource && state.category === "image") {
+        openCropWorkspace();
+      }
     }
   }
 
@@ -121,7 +132,14 @@
       noopNotice: document.getElementById("noopNotice"),
       tabBefore: document.getElementById("tabBefore"),
       tabAfter: document.getElementById("tabAfter"),
+      previewImageWrap: document.getElementById("previewImageWrap"),
       previewImage: document.getElementById("previewImage"),
+      cropToggleBtn: document.getElementById("cropToggleBtn"),
+      cropWorkspace: document.getElementById("cropWorkspace"),
+      cropCanvas: document.getElementById("cropCanvas"),
+      cropDimBadge: document.getElementById("cropDimBadge"),
+      applyCropBtn: document.getElementById("applyCropBtn"),
+      cancelCropBtn: document.getElementById("cancelCropBtn"),
       qualitySlider: document.getElementById("qualitySlider"),
       qualityValue: document.getElementById("qualityValue"),
       formatButtons: Array.from(document.querySelectorAll(".segmented-btn")),
@@ -273,6 +291,7 @@
   }
 
   function resetToEmptyState() {
+    closeCropWorkspace();
     revokeUrls();
     state.originalFile = null;
     state.fileInfo = null;
@@ -523,6 +542,153 @@
       downloadFile(state.originalFile, state.originalFile.name);
       setActionStatus(`Downloaded ${state.originalFile.name}`, "success");
     });
+  }
+
+  // ---------- Crop & Snip Tool ----------
+
+  function wireCropTool() {
+    if (!els.cropToggleBtn) return;
+
+    els.cropToggleBtn.addEventListener("click", () => {
+      if (state.isCropping) {
+        closeCropWorkspace();
+      } else {
+        openCropWorkspace();
+      }
+    });
+
+    els.cancelCropBtn.addEventListener("click", closeCropWorkspace);
+    els.applyCropBtn.addEventListener("click", applyCrop);
+
+    const canvas = els.cropCanvas;
+    let isDragging = false;
+
+    canvas.addEventListener("mousedown", (e) => {
+      if (!state.cropImageObj) return;
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      const startX = (e.clientX - rect.left) * scaleX;
+      const startY = (e.clientY - rect.top) * scaleY;
+
+      state.cropDragStart = { x: startX, y: startY };
+      state.cropRect = { x: startX, y: startY, w: 0, h: 0 };
+      isDragging = true;
+      els.applyCropBtn.disabled = true;
+      drawCropCanvas();
+    });
+
+    window.addEventListener("mousemove", (e) => {
+      if (!isDragging || !state.cropDragStart || !state.cropImageObj) return;
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      const currentX = Math.max(0, Math.min(canvas.width, (e.clientX - rect.left) * scaleX));
+      const currentY = Math.max(0, Math.min(canvas.height, (e.clientY - rect.top) * scaleY));
+
+      const x = Math.min(state.cropDragStart.x, currentX);
+      const y = Math.min(state.cropDragStart.y, currentY);
+      const w = Math.abs(currentX - state.cropDragStart.x);
+      const h = Math.abs(currentY - state.cropDragStart.y);
+
+      state.cropRect = { x, y, w, h };
+      els.cropDimBadge.textContent = `${Math.round(w)} × ${Math.round(h)} px`;
+      els.applyCropBtn.disabled = w < 8 || h < 8;
+      drawCropCanvas();
+    });
+
+    window.addEventListener("mouseup", () => {
+      if (isDragging) {
+        isDragging = false;
+        if (state.cropRect && state.cropRect.w >= 8 && state.cropRect.h >= 8) {
+          els.applyCropBtn.disabled = false;
+        }
+      }
+    });
+  }
+
+  function openCropWorkspace() {
+    if (!state.originalUrl) return;
+    state.isCropping = true;
+    els.previewImageWrap.hidden = true;
+    els.cropWorkspace.hidden = false;
+    els.cropToggleBtn.textContent = "✕ Close Crop";
+    els.cropDimBadge.textContent = "Click and drag on image to select custom area";
+    els.applyCropBtn.disabled = true;
+    state.cropRect = null;
+
+    const img = new Image();
+    img.onload = () => {
+      state.cropImageObj = img;
+      els.cropCanvas.width = img.naturalWidth || img.width;
+      els.cropCanvas.height = img.naturalHeight || img.height;
+      drawCropCanvas();
+    };
+    img.src = state.originalUrl;
+  }
+
+  function closeCropWorkspace() {
+    state.isCropping = false;
+    state.cropRect = null;
+    state.cropDragStart = null;
+    if (els.cropWorkspace) els.cropWorkspace.hidden = true;
+    if (els.previewImageWrap) els.previewImageWrap.hidden = false;
+    if (els.cropToggleBtn) els.cropToggleBtn.textContent = "✂ Crop / Snip Image";
+  }
+
+  function drawCropCanvas() {
+    const canvas = els.cropCanvas;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx || !state.cropImageObj) return;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(state.cropImageObj, 0, 0, canvas.width, canvas.height);
+
+    if (!state.cropRect || state.cropRect.w < 2 || state.cropRect.h < 2) {
+      return;
+    }
+
+    const { x, y, w, h } = state.cropRect;
+
+    // Dark overlay outside selection
+    ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
+    ctx.fillRect(0, 0, canvas.width, y);
+    ctx.fillRect(0, y + h, canvas.width, canvas.height - (y + h));
+    ctx.fillRect(0, y, x, h);
+    ctx.fillRect(x + w, y, canvas.width - (x + w), h);
+
+    // Crisp white border
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, w, h);
+
+    // Inner subtle dashed guide
+    ctx.strokeStyle = "#111111";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.strokeRect(x, y, w, h);
+    ctx.setLineDash([]);
+  }
+
+  async function applyCrop() {
+    if (!state.cropRect || !state.cropImageObj || state.cropRect.w < 8 || state.cropRect.h < 8) return;
+    const { x, y, w, h } = state.cropRect;
+
+    const cropCanvas = document.createElement("canvas");
+    cropCanvas.width = Math.round(w);
+    cropCanvas.height = Math.round(h);
+    const ctx = cropCanvas.getContext("2d");
+    ctx.drawImage(state.cropImageObj, x, y, w, h, 0, 0, cropCanvas.width, cropCanvas.height);
+
+    cropCanvas.toBlob(async (blob) => {
+      if (!blob) return;
+      const base = state.originalFile ? state.originalFile.name.replace(/\.[^.]+$/, "") : "capture";
+      const croppedFile = new File([blob], `${base}-cropped.png`, { type: "image/png" });
+      closeCropWorkspace();
+      await loadFile(croppedFile);
+      setActionStatus(`Cropped to ${cropCanvas.width} × ${cropCanvas.height} px`, "success");
+    }, "image/png");
   }
 
   // ========================================================

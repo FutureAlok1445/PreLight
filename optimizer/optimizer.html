@@ -78,14 +78,29 @@
 
         <section class="preview-panel" aria-label="Before and after preview">
           <div class="preview-header">
-            <span class="panel-label">Visual Comparison</span>
+            <div class="preview-header-left">
+              <span class="panel-label">Visual Comparison</span>
+              <button id="cropToggleBtn" class="btn btn-secondary btn-small" type="button" style="margin-left: 12px;">✂ Crop / Snip Image</button>
+            </div>
             <div class="preview-tabs" role="tablist">
               <button id="tabBefore" class="preview-tab" role="tab" aria-selected="false" type="button">Before (Original)</button>
               <button id="tabAfter" class="preview-tab is-active" role="tab" aria-selected="true" type="button">After (Optimized)</button>
             </div>
           </div>
-          <div class="preview-image-wrap">
+          <div id="previewImageWrap" class="preview-image-wrap">
             <img id="previewImage" alt="Image preview" />
+          </div>
+          <div id="cropWorkspace" class="crop-workspace" hidden>
+            <div class="crop-canvas-wrap">
+              <canvas id="cropCanvas"></canvas>
+            </div>
+            <div class="crop-toolbar">
+              <span id="cropDimBadge" class="crop-dim-badge">Click and drag on image to select custom area</span>
+              <div class="crop-toolbar-btns">
+                <button id="applyCropBtn" class="btn btn-primary btn-small" type="button" disabled>Apply Crop</button>
+                <button id="cancelCropBtn" class="btn btn-secondary btn-small" type="button">Cancel</button>
+              </div>
+            </div>
           </div>
         </section>
 

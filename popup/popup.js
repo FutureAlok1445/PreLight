@@ -23,6 +23,7 @@
   const els = {
     captureAreaBtn: document.getElementById("captureAreaBtn"),
     captureBtn: document.getElementById("captureBtn"),
+    captureScreenBtn: document.getElementById("captureScreenBtn"),
     selectBtn: document.getElementById("selectBtn"),
     pasteBtn: document.getElementById("pasteBtn"),
     fileInput: document.getElementById("fileInput"),
@@ -49,6 +50,7 @@
 
     wireAreaCapture();
     wireCapture();
+    wireScreenCapture();
     wireSelect();
     wirePaste();
     wireDropZone();
@@ -63,6 +65,60 @@
     if (kind) els.status.classList.add(kind === "error" ? "is-error" : "is-success");
   }
 
+  // ---------- Desktop / Screen / Window Capture Engine ----------
+
+  async function triggerDesktopCapture(forAreaSnip = false) {
+    setStatus("Select screen or window to capture…");
+    return new Promise((resolve) => {
+      chrome.runtime.sendMessage({ type: "START_DESKTOP_CAPTURE" }, async (resp) => {
+        if (!resp) {
+          setStatus("Screen capture could not be initiated.", "error");
+          resolve(false);
+          return;
+        }
+        if (resp.canceled) {
+          setStatus("Capture canceled.");
+          resolve(false);
+          return;
+        }
+        if (!resp.ok || !resp.dataUrl) {
+          setStatus(resp.error || "Screen capture failed.", "error");
+          resolve(false);
+          return;
+        }
+        try {
+          const res = await fetch(resp.dataUrl);
+          const blob = await res.blob();
+          const name = `capture-${timestampForFilename()}.png`;
+          await window.Preflight.storageBridge.savePending(
+            blob,
+            name,
+            "image/png",
+            forAreaSnip ? "crop" : "capture"
+          );
+          await openOptimizerTab();
+          window.close();
+          resolve(true);
+        } catch (e) {
+          setStatus("Failed to process captured image.", "error");
+          resolve(false);
+        }
+      });
+    });
+  }
+
+  function wireScreenCapture() {
+    if (!els.captureScreenBtn) return;
+    els.captureScreenBtn.addEventListener("click", async () => {
+      els.captureScreenBtn.disabled = true;
+      try {
+        await triggerDesktopCapture(false);
+      } finally {
+        els.captureScreenBtn.disabled = false;
+      }
+    });
+  }
+
   // ---------- Area Snipper (Custom Size Screenshot) ----------
 
   function wireAreaCapture() {
@@ -72,27 +128,35 @@
       setStatus("Select an area on the page…");
       try {
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        if (!tab || !tab.id) throw new Error("No active tab found.");
+        if (!tab || !tab.id) {
+          await triggerDesktopCapture(true);
+          return;
+        }
         if (isRestrictedUrl(tab.url)) {
-          throw new Error("Cannot take screenshots on internal Chrome pages.");
+          // Internal Chrome page or system tab — use universal window capture with workspace crop!
+          setStatus("Select window to snip…");
+          await triggerDesktopCapture(true);
+          return;
         }
 
-        chrome.tabs.sendMessage(tab.id, { type: "START_AREA_SCREENSHOT" }, (resp) => {
+        chrome.tabs.sendMessage(tab.id, { type: "START_AREA_SCREENSHOT" }, async (resp) => {
           if (chrome.runtime.lastError) {
-            setStatus("Please reload this page once to enable area screenshots.", "error");
-            els.captureAreaBtn.disabled = false;
+            // Content script could not receive message — seamlessly fallback to desktop capture with crop!
+            await triggerDesktopCapture(true);
           } else {
             window.close();
           }
         });
       } catch (err) {
-        setStatus(err && err.message ? err.message : "Could not start area screenshot.", "error");
+        // Any failure falls back to universal capture rather than blocking the user
+        await triggerDesktopCapture(true);
+      } finally {
         els.captureAreaBtn.disabled = false;
       }
     });
   }
 
-  // ---------- Capture Screenshot ----------
+  // ---------- Capture Visible Tab Screenshot ----------
 
   function wireCapture() {
     els.captureBtn.addEventListener("click", async () => {
@@ -100,21 +164,31 @@
       setStatus("Capturing…");
       try {
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        if (!tab || !tab.id) throw new Error("No active tab found.");
+        if (!tab || !tab.id) {
+          await triggerDesktopCapture(false);
+          return;
+        }
         if (isRestrictedUrl(tab.url)) {
-          throw new Error("Chrome does not allow screenshots on this page.");
+          // Internal browser page — seamlessly fallback to desktop/window capture!
+          await triggerDesktopCapture(false);
+          return;
         }
 
-        const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: "png" });
-        const name = `screenshot-${timestampForFilename()}.png`;
-        const res = await fetch(dataUrl);
-        const blob = await res.blob();
+        try {
+          const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: "png" });
+          const name = `screenshot-${timestampForFilename()}.png`;
+          const res = await fetch(dataUrl);
+          const blob = await res.blob();
 
-        await window.Preflight.storageBridge.savePending(blob, name, "image/png", "capture");
-        await openOptimizerTab();
-        window.close();
+          await window.Preflight.storageBridge.savePending(blob, name, "image/png", "capture");
+          await openOptimizerTab();
+          window.close();
+        } catch (captureErr) {
+          // If captureVisibleTab fails for any permission/security reason, seamlessly capture screen/window!
+          await triggerDesktopCapture(false);
+        }
       } catch (err) {
-        setStatus(err && err.message ? err.message : "Could not capture this page.", "error");
+        await triggerDesktopCapture(false);
       } finally {
         els.captureBtn.disabled = false;
       }
