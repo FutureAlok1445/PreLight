@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Preflight — File Preparation Workspace</title>
+  <meta name="color-scheme" content="light" />
+  <link rel="stylesheet" href="optimizer.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M4 15L10 9L14 13L20 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M14 6H20V12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span>
+      <span class="topbar-title">PREFLIGHT</span>
+      <span class="topbar-divider">|</span>
+      <span class="topbar-subtitle">File Preparation Workspace</span>
+    </div>
+    <p class="privacy-note">Zero Network Transmission · Local In-Memory Processing</p>
+  </header>
+
+  <main class="page">
+    <!-- Empty state: shown until a file is loaded -->
+    <section id="emptyState" class="empty-state">
+      <div class="empty-box">
+        <h1 class="page-heading">File Preparation</h1>
+        <p class="page-subheading">Select, paste, or drop any file (Image, PDF, CSV, Text, Document) to prepare, inspect, or optimize locally.</p>
+        <div class="row-2 empty-actions">
+          <button id="emptySelectBtn" class="btn btn-primary" type="button">Add File</button>
+          <button id="emptyPasteBtn" class="btn btn-secondary" type="button">Paste Clipboard</button>
+        </div>
+        <div id="emptyDropZone" class="drop-zone" tabindex="0" role="button" aria-label="Drop a file here, or press Control V to paste">
+          Drop any file here, or press <kbd>Ctrl</kbd>+<kbd>V</kbd> to paste
+        </div>
+        <input id="emptyFileInput" type="file" hidden />
+      </div>
+    </section>
+
+    <!-- Working state: shown once a file is loaded -->
+    <section id="workState" class="work" hidden>
+      <div class="work-header">
+        <div class="work-header-info">
+          <span class="work-header-label">Active File</span>
+          <h1 id="fileName" class="file-name">file</h1>
+          <p id="fileMetaBadge" class="file-meta-badge">—</p>
+        </div>
+        <button id="newFileBtn" class="btn btn-secondary btn-small" type="button">Open Different File</button>
+      </div>
+
+      <p id="workError" class="work-error" role="alert" hidden></p>
+      <p id="processingNotice" class="processing-notice" role="status" aria-live="polite" hidden>Processing file locally…</p>
+
+      <!-- Panel 1: Image Workspace -->
+      <section id="imagePanel" class="file-panel" hidden>
+        <div class="size-summary">
+          <div class="size-block">
+            <span class="size-label">Original File</span>
+            <span id="originalSize" class="size-value">—</span>
+            <span id="originalDims" class="size-sub">—</span>
+          </div>
+          <div class="size-arrow" aria-hidden="true">→</div>
+          <div class="size-block">
+            <span class="size-label">Optimized Output</span>
+            <span id="optimizedSize" class="size-value">—</span>
+            <span id="optimizedDims" class="size-sub">—</span>
+          </div>
+          <div class="size-block reduction-block">
+            <span class="size-label">Net Reduction</span>
+            <span id="reductionValue" class="reduction-value">—</span>
+            <span class="size-sub">space saved</span>
+          </div>
+        </div>
+
+        <p id="noopNotice" class="noop-notice" hidden>✓ Notice: The image is already optimally sized. Your original file has been preserved unchanged.</p>
+
+        <section class="preview-panel" aria-label="Before and after preview">
+          <div class="preview-header">
+            <span class="panel-label">Visual Comparison</span>
+            <div class="preview-tabs" role="tablist">
+              <button id="tabBefore" class="preview-tab" role="tab" aria-selected="false" type="button">Before (Original)</button>
+              <button id="tabAfter" class="preview-tab is-active" role="tab" aria-selected="true" type="button">After (Optimized)</button>
+            </div>
+          </div>
+          <div class="preview-image-wrap">
+            <img id="previewImage" alt="Image preview" />
+          </div>
+        </section>
+
+        <section class="controls-panel" aria-label="Compression controls">
+          <h2 class="panel-title">Compression Parameters</h2>
+          <label class="slider-label" for="qualitySlider">
+            <span>Quality Level</span>
+            <span class="slider-ends">
+              <span>Higher Compression</span>
+              <span>Higher Fidelity</span>
+            </span>
+          </label>
+          <input id="qualitySlider" type="range" min="35" max="95" step="1" value="82" />
+          <p class="quality-readout">Selected Quality: <span id="qualityValue">82</span>%</p>
+
+          <div class="control-row">
+            <span class="control-label">Target Format</span>
+            <div class="segmented" role="group" aria-label="Output format">
+              <button class="segmented-btn is-active" data-format="auto" type="button">Auto</button>
+              <button class="segmented-btn" data-format="image/webp" type="button">WebP</button>
+              <button class="segmented-btn" data-format="image/jpeg" type="button">JPEG</button>
+              <button class="segmented-btn" data-format="image/png" type="button">PNG</button>
+            </div>
+          </div>
+
+          <div class="control-row">
+            <label class="control-label" for="resizeSelect">Maximum Dimensions</label>
+            <select id="resizeSelect">
+              <option value="0">Original Dimensions</option>
+              <option value="2400">Constrain to 2400px</option>
+              <option value="1920">Constrain to 1920px (1080p)</option>
+              <option value="1280">Constrain to 1280px (720p)</option>
+            </select>
+          </div>
+
+          <button id="reoptimizeBtn" class="btn btn-secondary btn-block" type="button">Apply &amp; Re-optimize</button>
+        </section>
+
+        <section class="actions-panel" aria-label="Actions">
+          <button id="copyBtn" class="btn btn-primary btn-block" type="button">Copy Optimized to Clipboard</button>
+          <div class="row-2">
+            <button id="downloadBtn" class="btn btn-secondary" type="button">Download Optimized</button>
+            <button id="downloadOriginalBtn" class="btn btn-secondary" type="button">Download Original</button>
+          </div>
+        </section>
+      </section>
+
+      <!-- Panel 2: PDF Workspace -->
+      <section id="pdfPanel" class="file-panel" hidden>
+        <div class="tool-tabs" role="tablist">
+          <button id="pdfTabCompress" class="tool-tab is-active" type="button">Compress PDF</button>
+          <button id="pdfTabSplit" class="tool-tab" type="button">Split / Extract</button>
+          <button id="pdfTabMerge" class="tool-tab" type="button">Merge PDFs</button>
+        </div>
+
+        <!-- PDF Sub-tool 1: Compress -->
+        <div id="pdfCompressView" class="tool-subview">
+          <div class="size-summary">
+            <div class="size-block">
+              <span class="size-label">Original PDF</span>
+              <span id="pdfOrigSize" class="size-value">—</span>
+            </div>
+            <div class="size-arrow" aria-hidden="true">→</div>
+            <div class="size-block">
+              <span class="size-label">Optimized Output</span>
+              <span id="pdfOptSize" class="size-value">—</span>
+            </div>
+            <div class="size-block reduction-block">
+              <span class="size-label">Net Reduction</span>
+              <span id="pdfReductionVal" class="reduction-value">—</span>
+              <span class="size-sub">space saved</span>
+            </div>
+          </div>
+          <p class="tool-explainer">Optimizes cross-reference object streams, removes redundant dictionary entries, and strips non-essential metadata while keeping all pages and text intact.</p>
+          <button id="runPdfCompressBtn" class="btn btn-primary btn-block" type="button">Compress PDF Locally</button>
+          <button id="downloadPdfCompressedBtn" class="btn btn-secondary btn-block" type="button" disabled>Download Compressed PDF</button>
+        </div>
+
+        <!-- PDF Sub-tool 2: Split -->
+        <div id="pdfSplitView" class="tool-subview" hidden>
+          <p class="tool-explainer">Extract selected pages into a new standalone PDF.</p>
+          <label class="field-label" for="pdfSplitRangeInput">
+            Page Ranges to Extract (e.g. <code>1-3, 5, 8</code>):
+          </label>
+          <input id="pdfSplitRangeInput" class="text-input" type="text" placeholder="1-3, 5" />
+          <p id="pdfSplitRangeHint" class="field-hint">Document has 1 page.</p>
+          <button id="runPdfSplitBtn" class="btn btn-primary btn-block" type="button">Extract Pages</button>
+          <button id="downloadPdfSplitBtn" class="btn btn-secondary btn-block" type="button" disabled>Download Extracted PDF</button>
+        </div>
+
+        <!-- PDF Sub-tool 3: Merge -->
+        <div id="pdfMergeView" class="tool-subview" hidden>
+          <p class="tool-explainer">Combine multiple PDF files into one. Arrange their order below:</p>
+          <div id="pdfQueueList" class="pdf-queue"></div>
+          <button id="addPdfToQueueBtn" class="btn btn-secondary btn-block" type="button">+ Add Another PDF</button>
+          <input id="pdfQueueInput" type="file" accept="application/pdf" multiple hidden />
+          <button id="runPdfMergeBtn" class="btn btn-primary btn-block" type="button" disabled>Merge PDFs</button>
+          <button id="downloadPdfMergedBtn" class="btn btn-secondary btn-block" type="button" disabled>Download Merged PDF</button>
+        </div>
+      </section>
+
+      <!-- Panel 3: Text & CSV Workspace -->
+      <section id="textPanel" class="file-panel" hidden>
+        <div class="stats-card">
+          <h2 class="panel-title">Structure Analysis</h2>
+          <div class="stats-grid">
+            <div class="stats-item">
+              <span class="stats-label">Lines</span>
+              <span id="textLinesVal" class="stats-val">—</span>
+            </div>
+            <div class="stats-item">
+              <span class="stats-label">Words</span>
+              <span id="textWordsVal" class="stats-val">—</span>
+            </div>
+            <div class="stats-item">
+              <span class="stats-label">Characters</span>
+              <span id="textCharsVal" class="stats-val">—</span>
+            </div>
+            <div id="csvDelimItem" class="stats-item" hidden>
+              <span class="stats-label">Delimiter</span>
+              <span id="csvDelimVal" class="stats-val">—</span>
+            </div>
+          </div>
+        </div>
+
+        <p class="tool-explainer">Text files are raw character streams. PREflight cleans trailing whitespace, strips empty lines, and normalizes line breaks locally without changing text contents.</p>
+
+        <div class="actions-panel">
+          <button id="cleanTextBtn" class="btn btn-primary btn-block" type="button">Clean Whitespace &amp; Empty Lines</button>
+          <button id="textToPdfBtn" class="btn btn-secondary btn-block" type="button">Convert to Formatted PDF</button>
+          <button id="csvToJsonBtn" class="btn btn-secondary btn-block" type="button" hidden>Export CSV to JSON</button>
+          <button id="downloadTextBtn" class="btn btn-secondary btn-block" type="button">Download Original</button>
+        </div>
+      </section>
+
+      <!-- Panel 4: Document / Other File View -->
+      <section id="docPanel" class="file-panel" hidden>
+        <div class="stats-card">
+          <h2 class="panel-title">Document Inspection</h2>
+          <p id="docNotice" class="tool-explainer">This file is a packaged document archive. PREflight validates its structure and keeps the original intact for upload.</p>
+        </div>
+        <button id="downloadDocBtn" class="btn btn-secondary btn-block" type="button">Download Original File</button>
+      </section>
+
+      <p id="actionStatus" class="status" role="status" aria-live="polite"></p>
+    </section>
+  </main>
+
+  <script src="../lib/pdf-lib.min.js"></script>
+  <script src="../core/utils.js"></script>
+  <script src="../core/pdf-processor.js"></script>
+  <script src="../core/text-processor.js"></script>
+  <script src="../core/file-analyzer.js"></script>
+  <script src="../core/smart-profile.js"></script>
+  <script src="../core/image-optimizer.js"></script>
+  <script src="../core/clipboard.js"></script>
+  <script src="../core/downloader.js"></script>
+  <script src="optimizer.js"></script>
+</body>
+</html>

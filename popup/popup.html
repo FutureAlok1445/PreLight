@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Preflight — Optimize before you upload</title>
+  <meta name="color-scheme" content="light" />
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <header class="header">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M4 15L10 9L14 13L20 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M14 6H20V12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span>
+      <div>
+        <h1 class="brand-name">PREFLIGHT</h1>
+        <p class="brand-tagline">Optimize before you upload</p>
+      </div>
+    </div>
+  </header>
+
+  <main class="content">
+    <section aria-label="Capture and import">
+      <div class="row-2">
+        <button id="captureAreaBtn" class="btn btn-primary" type="button">
+          Select Area to Snip
+        </button>
+        <button id="captureBtn" class="btn btn-secondary" type="button">
+          Capture Tab
+        </button>
+      </div>
+
+      <div class="row-2">
+        <button id="selectBtn" class="btn btn-secondary" type="button">Add File</button>
+        <button id="pasteBtn" class="btn btn-secondary" type="button">Paste</button>
+      </div>
+      <input id="fileInput" type="file" hidden />
+
+      <div id="dropZone" class="drop-zone" tabindex="0" role="button" aria-label="Drop a file here, or click Paste and press Control V">
+        Drop a file here, or press <kbd>Ctrl</kbd>+<kbd>V</kbd>
+      </div>
+
+      <p id="popupStatus" class="status" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="quick-actions" aria-label="Quick actions">
+      <h2 class="section-title">Previous Result</h2>
+      <div id="lastResultCard" class="last-result-card">
+        <p class="muted">No files optimized during this session.</p>
+      </div>
+      <div class="row-2">
+        <button id="copyLastBtn" class="btn btn-secondary" type="button" disabled>Copy Image</button>
+        <button id="downloadLastBtn" class="btn btn-secondary" type="button" disabled>Download File</button>
+      </div>
+    </section>
+
+    <section aria-label="Settings">
+      <button id="settingsToggle" class="settings-toggle" type="button" aria-expanded="false" aria-controls="settingsPanel">
+        Configuration &amp; Options
+      </button>
+      <div id="settingsPanel" class="settings-panel" hidden>
+        <fieldset class="field-group">
+          <legend>Optimization mode</legend>
+          <label class="radio"><input type="radio" name="defaultMode" value="smart" /> Smart profile</label>
+          <label class="radio"><input type="radio" name="defaultMode" value="manual" /> Manual control</label>
+        </fieldset>
+
+        <label class="field">
+          Target output format
+          <select id="preferredFormat">
+            <option value="auto">Auto (Best match)</option>
+            <option value="image/webp">WebP</option>
+            <option value="image/jpeg">JPEG</option>
+            <option value="image/png">PNG</option>
+          </select>
+        </label>
+
+        <label class="checkbox">
+          <input type="checkbox" id="rememberQuality" /> Retain custom quality level
+        </label>
+
+        <label class="checkbox">
+          <input type="checkbox" id="uploadOptimizerEnabled" /> Prompt to optimize uploads on web pages
+        </label>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p class="privacy-note">All processing occurs locally in memory. Zero network transmission.</p>
+  </footer>
+
+  <script src="../core/utils.js"></script>
+  <script src="../core/clipboard.js"></script>
+  <script src="../core/downloader.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
